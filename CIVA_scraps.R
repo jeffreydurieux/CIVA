@@ -1,6 +1,8 @@
 library(ivaBSS)
 library(LaplacesDemon)
 
+### check: https://www.mdpi.com/1424-8220/23/11/5333
+
 
 # Generate sources from multivariate Laplace distribution
 P <- 5; N <- 50000; D <- 3; # D is number of data sets # P dimension, # N sample
