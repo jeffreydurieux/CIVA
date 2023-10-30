@@ -105,13 +105,19 @@ Simulate_CIVA <- function(Nr = 40, V = 1000, Ti = 100, Q = 2, R = 2, D = 3, E = 
   return(Out)
 }
 
-test <- Simulate_CIVA(Nr = 10, V = 1000, Ti = 2, Q = 2,R = 2,D = 3, E = .001)
-
-X <- abind(test$Xe[1:2], along = 1)
-
-set.seed(2407)
-tmp <- proc.time()
-res <- fastIVA(Xhat, source_density = 'laplace_diag')
-time <- proc.time() - tmp
-
-
+# set.seed(2407)
+# testdata <- Simulate_CIVA(Nr = 10, V = 1000, Ti = 2, Q = 2,R = 2,D = 3, E = .001)
+# 
+# X <- abind::abind(testdata$Xe[1:2], along = 1)
+# A <- abind::abind(testdata$Ais[[1]][1:2], along = 1)
+# Al <- testdata$Ais[[1]][1:2]
+# 
+# X <- testdata$Xe[[1]]
+# set.seed(2407)
+# tmp <- proc.time()
+# res <- fastIVA(X, source_density = 'laplace_diag')
+# time <- proc.time() - tmp
+# time
+# tt <- coef(res, which.dataset = 1)
+# avg_ISI(tt,testdata$Ais[[1]][[1]])
+# 
