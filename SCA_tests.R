@@ -9,7 +9,7 @@ for(i in 1:3){
 
 scares <- sca(Xl, nfac = 2, type = 'sca-p', rotation = 'none')
 
-arr <- array(data = 0, dim = c(4,1000,3))
+arr <- array(data = 0, dim = c(2,1000,3))
 
 for(i in 1:3){
   arr[,,i] <- t( scares$D[[i]] )
