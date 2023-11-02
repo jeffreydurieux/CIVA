@@ -34,10 +34,10 @@ whiten_custom <- function (X, nc)
 }
 
 
-test <- whiten_custom(X,2)
-cov(t(test$Z[,,3]))
-plot(t(test$Z[,,3]), asp=T)
-
-test2 <- ivaBSS:::whiten(X)
-cov(t(test2$Z[,,1]))
-plot(t(test2$Z[,,3]), asp=T)
+# test <- whiten_custom(X,2)
+# cov(t(test$Z[,,3]))
+# plot(t(test$Z[,,3]), asp=T)
+# 
+# test2 <- ivaBSS:::whiten(X)
+# cov(t(test2$Z[,,1]))
+# plot(t(test2$Z[,,3]), asp=T)
