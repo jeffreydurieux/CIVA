@@ -23,7 +23,8 @@ ExtractIVA <- function(DataList, nComp, par = F, vars=NULL,seed=1){
     
     IVA_S <- lapply(ivaListCluster, function(anom) anom$S)
     IVA_W <- lapply(ivaListCluster, function(anom) anom$W)
-    ListRes <- list("Qr" = IVA_S, "Wr" = IVA_W)
+    IVA_conv <- lapply(ivaListCluster, function(anom) anom$converged)
+    ListRes <- list("Qr" = IVA_S, "Wr" = IVA_W, 'conv' = IVA_conv)
 
   return(ListRes)
 }
