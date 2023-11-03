@@ -2,7 +2,7 @@
 
 # What: function to simulate CIVA data
 
-#V = 100; Ti = 10; Nr = 10; Q = 2; R = 2; E = 0.01; D = 3
+#V = 1000; Ti = 2; Nr = 1; Q = 2; R = 2; E = 0.01; D = 3
 Simulate_CIVA <- function(Nr = 40, V = 1000, Ti = 100, Q = 2, R = 2, D = 3, E = 0.1){
   ###
   # N = subjects
@@ -57,7 +57,7 @@ Simulate_CIVA <- function(Nr = 40, V = 1000, Ti = 100, Q = 2, R = 2, D = 3, E = 
     Stemp <- array(NA, c(Q, V, D))
     
     for (j in 1:Q) {
-      Stemp[j, , ] <- LaplacesDemon::rmvl(Nr, rep(0, D), diag(D))
+      Stemp[j, , ] <- LaplacesDemon::rmvl(V, rep(0, D), diag(D))
     }
     Qr[[i]] <- Stemp
   }
@@ -66,7 +66,7 @@ Simulate_CIVA <- function(Nr = 40, V = 1000, Ti = 100, Q = 2, R = 2, D = 3, E = 
   for(i in 1:R){
     Atemp <- list()
     for (j in 1:Nr) {
-      Atemp[[j]] <- array(runif(Ti * Q * D), c(Ti, Q, D))
+      Atemp[[j]] <- array(rnorm(Ti * Q * D), c(Ti, Q, D))
     }
     Ais[[i]] <- Atemp
   }
@@ -84,7 +84,7 @@ Simulate_CIVA <- function(Nr = 40, V = 1000, Ti = 100, Q = 2, R = 2, D = 3, E = 
     }
     Xlist[[i]] <- Xjlist
   }
-  
+ 
   X <- unlist(Xlist, recursive = F)
   
   Xe <- list()
