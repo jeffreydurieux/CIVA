@@ -7,12 +7,12 @@
 #change path
 ext <- '/exports/fsw/durieuxj/P4/Sim1/'  
 
+library(mclust)
 library(gtools)
 library(ivaBSS)
 library(multiway)
 library(abind)
 library(NMFN)
-
 source('EstAih.R')
 source('fastIVA_custom.R')
 source('Sim_CIVA.R')
@@ -24,16 +24,19 @@ source('ExtractIVA.R')
 source('Lir.R')
 source('Reclus.R')
 source('Xscale.R')
+source('SearchEmptyClusters.R')
+source('CIVA.R')
 
 #### Design ####
 
 Q <- c(2,4,6)
 R <- c(2, 4)
-Nr <- 50 #c(50, 75)
+Nr <- 20 #c(50, 75)
 Err <- c(.1, .3, .60)
+Ti <- 50
 rep <- 1:20
 
-grid <- expand.grid(Q=Q, R=R, Nr=Nr, Err=Err, rep = rep)
+grid <- expand.grid(R=R,Q=Q, Nr=Nr, Err=Err, rep = rep, Ti = Ti)
 
 args <- commandArgs(TRUE)
 #args <- as.numeric(args)
@@ -77,7 +80,7 @@ FindOptimalPermutSingle <- function( Sest , Strue, verbose = FALSE)
     tp = AllPerms[permtel,]
     tempRecovBlock = matrix( -9999 , 1 , 1 )
     
-    tempRecovBlock[1] = mean( abs( diag( Tucker(Strue ,
+    tempRecovBlock[1] = mean( abs( diag( congru(Strue ,
                                                 Sest[, tp] ) ) ) )
     # niet nodig als het goed is
     tempRecov = mean(tempRecovBlock)
@@ -103,7 +106,7 @@ FindOptimalPermutSingle <- function( Sest , Strue, verbose = FALSE)
   Out$BestRecov = BestRecov
   Out$BestRecovBlock = BestRecovBlock
   Out$BestPerm = BestPerm
-  Out$TuckerMatrix = Tucker(Strue , Sest[, BestPerm] )
+  Out$TuckerMatrix = congru(Strue , Sest[, BestPerm] )
   return(Out)
 }
 
@@ -180,121 +183,181 @@ for(sim in 1:nrow(grid)){
   set.seed(seed)
   
   ##### simulate #####
-  testdata <- Simulate_CIVA(Nr = 5, V = 2000, Ti = Ti, Q = 2,R = 2,D = 3, E = 0.1)
-  simdata <- Simulate_CJICA(Nk = grid[sim,]$N, 
-                            Vm = 2500,
-                            K = grid[sim, ]$R,
-                            Qm = grid[sim, ]$Q,
-                            Err = grid[sim, ]$Err,
-                            M = 2,
-                            cor = grid[sim, ]$rho,
-                            con = grid[sim, ]$lap
-  )
+  simdata <- Simulate_CIVA(Nr = grid$Nr[sim], V = 2000, Ti = grid$Ti[sim], 
+                            Q = grid$Q[sim],R = grid$R[sim], D = 3, E = grid$Err[sim])
+ 
+  X <- simdata$Xe
+  X <- lapply(X, xscale) 
   
   ##### analyse #######
   
   ptm <- proc.time()
-  cjica <- ClusterwiseJICA(X = simdata$Xe, k = grid[sim,]$R,
-                           nc = grid[sim, ]$Q, starts = 100, scale = T)
+  civa <- CIVA(X = X, nc = grid$Q[sim], R = grid$R[sim], starts = 30, 
+               parallel = FALSE,verbose = FALSE)
   time <- proc.time() - ptm
+  #time 
+  trueP <- simdata$P
+  civatrue <- CIVA(X = X, nc = grid$Q[sim], R = grid$R[sim], starts = 1, 
+                   parallel = FALSE,verbose = FALSE, initP = trueP)
   
-  cjicatrue <- ClusterwiseJICA(X = simdata$Xe, k = grid[sim,]$R,
-                               nc = grid[sim, ]$Q, starts = 1, scale = T,
-                               rational = simdata$P )
+
+  Pests <- sapply(seq_along(civa), function(x) civa[[x]]$P)
   
-  cjicaperbs <- list()
-  for(perbs in 1:10){
-    pert <- perturbation(p = simdata$P, percentage = 0.1)
-    cjicaPert <- ClusterwiseJICA(X = simdata$Xe, k = grid[sim,]$R,
-                                 nc = grid[sim, ]$Q, starts = 1, scale = T,
-                                 rational = pert)
-    cjicaperbs[[perbs]] <- cjicaPert[[1]]
-  }
-  
-  ##### cjica on mod one #####
-  f1 <- sqrt(5000/sum(simdata$Xe[1:2500,]^2))
-  X1 <- f1*simdata$Xe[1:2500,]
-  cjica_m1 <- ClusterwiseJICA(X = X1, k = grid[sim,]$R,
-                              nc = grid[sim, ]$Q, starts = 100, scale = F)
-  
-  ##### cjica on mod two #####
-  f2 <- sqrt(5000/sum(simdata$Xe[2501:5000,]^2))
-  X2 <- f2*simdata$Xe[2501:5000,]
-  cjica_m2 <- ClusterwiseJICA(X = X2, k = grid[sim,]$R,
-                              nc = grid[sim, ]$Q, starts = 100, scale = F)
-  
-  #### rational starts based on KM and HCL
-  km <- kmeans(x = t(simdata$Xe), centers = grid[sim, ]$R, nstart = 100)
-  
-  cjica_km <- ClusterwiseJICA(X = simdata$Xe, k = grid[sim,]$R,
-                              nc = grid[sim, ]$Q, starts = 1, scale = T,
-                              rational = km$cluster)
-  
-  hcl <- hclust(dist( t(simdata$Xe)), method = 'ward.D2' )
-  cut <- cutree(hcl, k = grid[sim,]$R)
-  cjica_hcl <- ClusterwiseJICA(X = simdata$Xe, k = grid[sim,]$R,
-                               nc = grid[sim, ]$Q, starts = 1, scale = T,
-                               rational = cut )
-  
-  
-  ##### evaluate ######
-  loss100 <- sapply(seq_along(cjica), function(anom) tail(cjica[[anom]]$lossiter, n = 1))
-  optimal <- cjica[[which.min(loss100)]]
-  
-  loss100m1 <- sapply(seq_along(cjica_m1), function(anom) tail(cjica_m1[[anom]]$lossiter, n = 1))
-  optimalm1 <- cjica_m1[[which.min(loss100m1)]]
-  
-  loss100m2 <- sapply(seq_along(cjica_m2), function(anom) tail(cjica_m2[[anom]]$lossiter, n = 1))
-  optimalm2 <- cjica_m2[[which.min(loss100m2)]]
-  
-  ### adjusted rand ###
-  ari <- adjustedRandIndex(simdata$P, optimal$p)
-  aritrueP <- adjustedRandIndex(simdata$P, cjicatrue[[1]]$p)
-  arim1 <- adjustedRandIndex(simdata$P, optimalm1$p)
-  arim2 <- adjustedRandIndex(simdata$P, optimalm2$p)
-  
-  
-  ### Tucker S ###
-  tucker_cor_lap <- unlist(TuckCheck(simdata$S))
-  
-  # add tucker congru 
-  clusper <- FindOptimalClusPermut(optimal$p, simdata$P)
-  
-  if(grid[sim,]$R == 3){
-    tucker_S <- mean(c(FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[1]]], Strue = simdata$S[[1]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[2]]], Strue = simdata$S[[2]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[3]]], Strue = simdata$S[[3]])$BestRecov))
+  ARI_starts <- apply(Pests, MARGIN = 2, adjustedRandIndex, y = simdata$P)
+  #ARI_starts
+  #cat(length( which(ARI_starts==1) ) /30 * 100,'%')
+
+  losses <- sapply(seq_along(civa), function(x) civa[[x]]$LossStart)
+
+  Optimal <- which.min(losses)
+
+  OptStart <- civa[[Optimal]]
+
+  ARIopt <- adjustedRandIndex(simdata$P, OptStart$P)
+
+  #####Tucker S#####
+  p_per <- FindOptimalClusPermut(OptStart$P, simdata$P)
+
+  if(grid[sim,]$R == 2){
+    # recov Q1
+    SresTuck <- mean(
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,1]) , t(OptStart$IVA$Qr[[1]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,2]) , t(OptStart$IVA$Qr[[1]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,3]) , t(OptStart$IVA$Qr[[1]][,,3]) )$BestRecov)
+      )
+      ,
+      # recov Q2
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,1]) , t(OptStart$IVA$Qr[[2]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,2]) , t(OptStart$IVA$Qr[[2]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,3]) , t(OptStart$IVA$Qr[[2]][,,3]) )$BestRecov)
+      )
+    )
+    
+    Aest1 <- inv_W(OptStart$IVA$Wr[[1]])
+    Aest1 <- Asplit(Aest1, dimsplit = grid$Ti[sim])
+
+    Aest2 <- inv_W(OptStart$IVA$Wr[[2]])
+    Aest2 <- Asplit(Aest2, dimsplit = grid$Ti[sim])
+
+    Ais1 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[1]]]) ){
+    Ais1[i] <- mean(c(
+      FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,1] , Aest1[[i]][,,1] )$BestRecov,
+      FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,2] , Aest1[[i]][,,2] )$BestRecov,
+      FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,3] , Aest1[[i]][,,3] )$BestRecov)
+    )
+    }
+
+    Ais2 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[2]]]) ){
+      Ais2[i] <- mean(c(
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,1] , Aest2[[i]][,,1] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,2] , Aest2[[i]][,,2] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,3] , Aest2[[i]][,,3] )$BestRecov)
+      )
+    }
+    # Res A
+    AresTuck <- mean(mean(Ais1), mean(Ais2))
     
   }else{
-    tucker_S <- mean(c(FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[1]]], Strue = simdata$S[[1]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[2]]], Strue = simdata$S[[2]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[3]]], Strue = simdata$S[[3]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[4]]], Strue = simdata$S[[4]])$BestRecov,
-                       FindOptimalPermutSingle(optimal$ica$Sr[[clusper$BestPerm[5]]], Strue = simdata$S[[5]])$BestRecov))
+    SresTuck <- mean(
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,1]) , t(OptStart$IVA$Qr[[1]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,2]) , t(OptStart$IVA$Qr[[1]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[1] ]][,,3]) , t(OptStart$IVA$Qr[[1]][,,3]) )$BestRecov)
+      )
+      ,
+      # recov Q2
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,1]) , t(OptStart$IVA$Qr[[2]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,2]) , t(OptStart$IVA$Qr[[2]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[2] ]][,,3]) , t(OptStart$IVA$Qr[[2]][,,3]) )$BestRecov)
+      )
+      ,
+      # recov Q3
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[3] ]][,,1]) , t(OptStart$IVA$Qr[[2]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[3] ]][,,2]) , t(OptStart$IVA$Qr[[2]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[3] ]][,,3]) , t(OptStart$IVA$Qr[[2]][,,3]) )$BestRecov)
+      )
+      ,
+      # recov Q2
+      mean(c(
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[4] ]][,,1]) , t(OptStart$IVA$Qr[[4]][,,1]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[4] ]][,,2]) , t(OptStart$IVA$Qr[[4]][,,2]) )$BestRecov,
+        FindOptimalPermutSingle( t(simdata$Qr[[ p_per$BestPerm[4] ]][,,3]) , t(OptStart$IVA$Qr[[4]][,,3]) )$BestRecov)
+      )
+    )
     
+    Aest1 <- inv_W(OptStart$IVA$Wr[[1]])
+    Aest1 <- Asplit(Aest1, dimsplit = grid$Ti[sim])
+    
+    Aest2 <- inv_W(OptStart$IVA$Wr[[2]])
+    Aest2 <- Asplit(Aest2, dimsplit = grid$Ti[sim])
+    
+    Aest3 <- inv_W(OptStart$IVA$Wr[[3]])
+    Aest3 <- Asplit(Aest3, dimsplit = grid$Ti[sim])
+    
+    Aest4 <- inv_W(OptStart$IVA$Wr[[4]])
+    Aest4 <- Asplit(Aest4, dimsplit = grid$Ti[sim])
+    
+    Ais1 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[1]]]) ){
+      Ais1[i] <- mean(c(
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,1] , Aest1[[i]][,,1] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,2] , Aest1[[i]][,,2] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[1] ]][[i]][,,3] , Aest1[[i]][,,3] )$BestRecov)
+      )
+    }
+    
+    Ais2 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[2]]]) ){
+      Ais2[i] <- mean(c(
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,1] , Aest2[[i]][,,1] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,2] , Aest2[[i]][,,2] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[2] ]][[i]][,,3] , Aest2[[i]][,,3] )$BestRecov)
+      )
+    }
+    
+    Ais3 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[3]]]) ){
+      Ais3[i] <- mean(c(
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[3] ]][[i]][,,1] , Aest3[[i]][,,1] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[3] ]][[i]][,,2] , Aest3[[i]][,,2] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[3] ]][[i]][,,3] , Aest3[[i]][,,3] )$BestRecov)
+      )
+    }
+    
+    Ais4 <- numeric()
+    for(i in 1:length(simdata$Ais[[ p_per$BestPerm[4]]]) ){
+      Ais4[i] <- mean(c(
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[4] ]][[i]][,,1] , Aest4[[i]][,,1] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[4] ]][[i]][,,2] , Aest4[[i]][,,2] )$BestRecov,
+        FindOptimalPermutSingle( simdata$Ais[[ p_per$BestPerm[4] ]][[i]][,,3] , Aest4[[i]][,,3] )$BestRecov)
+      )
+    }
+    # Res A
+    AresTuck <- mean(mean(Ais1), mean(Ais2), mean(Ais3), mean(Ais4))
   }
+  
   
   #### output list object #####
   output <- list()
   output$id <- grid[sim,]
   output$seed <- seed
   output$simdata <- simdata
-  output$ari <- ari
-  output$S <- tucker_S
-  output$Araw <- optimal$ica$Mr
+  output$ari <- ARIopt
+  output$ariall <- ARI_starts
+  output$TuckS <- SresTuck
+  output$TuckA <- AresTuck
+  output$civaTrueP <- civatrue
   output$time <- time
-  output$optimal <- optimal
-  output$loss100 <- loss100
-  output$tuckercheck <- tucker_cor_lap
-  output$cjicatrue <- cjicatrue[[1]]
-  output$cjicaperbs <- cjicaperbs
-  output$m1 <- list(optimalm1, arim1)
-  output$m2 <- list(optimalm2, arim2)
-  output$km <- cjica_km
-  output$km <- cjica_hcl
   
   ext <- '/exports/fsw/durieuxj/P4/Sim1/'  
-  ext <- paste(ext,'CJICA_sim1_',rows[sim], '.Rdata',sep = '')
+  ext <- paste(ext,'CIVA_sim1_',rows[sim], '.Rdata',sep = '')
+  
   save(output,file = ext)
   
 }
