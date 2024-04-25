@@ -22,7 +22,22 @@ S <- array(NA, c(P, N, D))
     X[, , d] <- A[, , d] %*% S[, , d]
   }
   
-  # Estimate sources and unmixing matrices
+# augmented notation check
+Aaug <- matrix(data = 0, nrow = 300, ncol = 15)
+    
+Aaug[1:100,1:5] <- A[,,1] 
+Aaug[101:200,6:10] <- A[,,2] 
+Aaug[201:300,11:15] <- A[,,3] 
+
+Saug <- rbind(S[,,1],S[,,2],S[,,3])
+dim(Saug)
+
+Xaug <- Aaug %*% Saug
+
+Xaugt <- rbind(X[,,1],X[,,2],X[,,3])
+all(Xaug == Xaugt)
+
+# Estimate sources and unmixing matrices
   set.seed(2407)
   tmp <- proc.time()
   res <- fastIVA(X, source_density = 'laplace_diag')
