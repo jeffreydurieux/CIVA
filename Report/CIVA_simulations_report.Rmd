@@ -1,0 +1,111 @@
+---
+title: "CIVA simulations"
+author: "Jeffrey Durieux"
+date: "2024-04-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+suppressPackageStartupMessages(library(doBy))
+suppressPackageStartupMessages(library(rio))
+suppressPackageStartupMessages(library(plotly))
+```
+
+This report contains three simulation studies for the Clusterwise Independent Vector Analysis (C-IVA) procedure
+
+# simulation 1
+
+The first simulation is contains randomly generated data that is based on a CIVA model. This is a basic 'concept of proof' simulation. No special correlation structure between S across scanning sessions is imposed.
+
+$$ X_i^{(D)} = P_{ir} S^{(D)}A_i^T$$
+Note that D represents a scanning session, other terms are similar to CICA. Note that S values are generated from a multivariate Laplace distribution.
+
+The design is as follow:
+
+- Q components: 2, 4 or 6
+- R clusters: 2 or 4
+- Noise: 10%, 30% or 60% (included per D)
+
+fixed: 
+
+- number of voxels: 2000 
+- number of scanning sessions (D): 3
+- number of subjects per cluster (Nr): 20
+- Time points per D: 50
+
+Size of the data are therefore: 2000 (V) X 50 (Ti) X 3 (D) X 40 subjects (R=2) or 80 subjects (R=4)
+
+20 repetitions were used.
+
+Note that the Ai matrices are non-square, which is not something that you encounter in the IVA literature. This was solved by computing:
+
+$$ A_i^{(D)} = X_i^{(D)}S^{(D)T}(S^{(D)}S^{(D)T})^{\dagger} $$
+
+Where $\dagger$ is the Moore-Penrose pseudo inverse, this is a similar step that is done in (C-)ICA.
+
+# results:
+
+```{r, echo = F}
+#setwd("C:/Users/jeffr/OneDrive - Erasmus University Rotterdam/Documents/CIVA/CIVA/Simulation1/")
+load(file = 'allres.Rdata')
+
+cat('Summary() of Adjusted Rand Index of clustering: \n')
+summary(alldf$ari)
+
+cat('Summary() of percentage of random starts that yielded the lowest loss function value \n')
+summary(alldf$perc)
+
+cat('Summary() of S Tucker congruence values: \n')
+summary(alldf$Stuck)
+
+cat('Summary() of A Tucker congruence values: \n')
+summary(alldf$Atuck)
+
+```
+
+## interactions:
+Congruence of S
+```{r, echo=F}
+summary_by(data = alldf, formula = Stuck~Err*Q*R*Nr)
+```
+
+Interactions S (means, first panel = 10% noise, middle = 30% noise, third panel 60% noise).
+X axis represents components, split by clusters (colours)
+```{r, echo = FALSE, warning=FALSE, message=F}
+df=summary_by(data = alldf, formula = Stuck~R*Q*Nr*Err)
+id1 = which(df$Err==.1)
+id2 = which(df$Err==.3)
+id3 = which(df$Err==.6)
+p1=plot_ly(data = df[id1,], x=~jitter(Q, amount = .1), y = ~Stuck.mean,color=~as.factor(R),type = 'scatter') 
+p2=plot_ly(data = df[id2,], x=~jitter(Q, amount = .1), y = ~Stuck.mean,color=~as.factor(R),type = 'scatter')
+p3=plot_ly(data = df[id3,], x=~jitter(Q, amount = .1), y = ~Stuck.mean,color=~as.factor(R),type = 'scatter')
+subplot(p1,p2,p3, shareY = TRUE)
+```
+
+I guess CIVA robust against noise (as was the case for CICA), difficulties with underlying model complexity (Q) but unexpected results or R effect (more clusters seems to improve results).
+
+Congruence of A
+```{r, echo=F}
+summary_by(data = alldf, formula = Atuck~R*Q*Nr*Err)
+```
+Interactions A (means, first panel = 10% noise, middle = 30% noise, third panel 60% noise).
+X axis represents components, split by clusters (colours)
+```{r, echo = FALSE, warning=FALSE, message=F}
+df=summary_by(data = alldf, formula = Atuck~R*Q*Nr*Err)
+id1 = which(df$Err==.1)
+id2 = which(df$Err==.3)
+id3 = which(df$Err==.6)
+p1=plot_ly(data = df[id1,], x=~jitter(Q, amount = .1), y = ~Atuck.mean,color=~as.factor(R),type = 'scatter') 
+p2=plot_ly(data = df[id2,], x=~jitter(Q, amount = .1), y = ~Atuck.mean,color=~as.factor(R),type = 'scatter')
+p3=plot_ly(data = df[id3,], x=~jitter(Q, amount = .1), y = ~Atuck.mean,color=~as.factor(R),type = 'scatter')
+subplot(p1,p2,p3, shareY = TRUE)
+```
+
+# Simulation 2
+
+
+

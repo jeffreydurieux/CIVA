@@ -192,8 +192,8 @@ for(sim in 1:nrow(grid)){
   ##### analyse #######
   
   ptm <- proc.time()
-  civa <- CIVA(X = X, nc = grid$Q[sim], R = grid$R[sim], starts = 30, 
-               parallel = FALSE,verbose = FALSE)
+  civa <- CIVA(X = X, nc = grid$Q[sim], R = grid$R[sim], starts = 5, 
+               parallel = FALSE,verbose = TRUE)
   time <- proc.time() - ptm
   #time 
   trueP <- simdata$P

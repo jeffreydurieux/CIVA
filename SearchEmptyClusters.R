@@ -76,4 +76,4 @@ SearchEmptyClusters <- function(nClus, newcluster, SSminVec = NULL) {
   return(newcluster)
 }
 
-test <- UpdatePInfo$SSList
+#test <- UpdatePInfo$SSList
