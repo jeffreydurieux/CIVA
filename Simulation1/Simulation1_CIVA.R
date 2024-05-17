@@ -37,7 +37,7 @@ Ti <- 50
 rep <- 1:20
 
 grid <- expand.grid(R=R,Q=Q, Nr=Nr, Err=Err, rep = rep, Ti = Ti)
-
+grid <- expand.grid(R=R,Q=Q, Nr=Nr, Err=Err, Ti = Ti)
 args <- commandArgs(TRUE)
 #args <- as.numeric(args)
 

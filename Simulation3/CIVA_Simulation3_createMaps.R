@@ -147,7 +147,9 @@ for(i in 1:10){
    cor(t(S2[,,2]), t(S2[,,3]))
    cor(t(S2[,,1]), t(S2[,,3]))
   # 
-  ext <- paste('C:/Users/jeffr/OneDrive - Erasmus University Rotterdam/Documents/CIVA/CIVA/Simulation3/Maps/',
+   cor(t(S1[,,1]), t(S2[,,1])) #diag should be ones
+   
+   ext <- paste('C:/Users/jeffr/OneDrive - Erasmus University Rotterdam/Documents/CIVA/CIVA/Simulation3/Maps/',
                'Maps_S1_',i,'.Rdata', sep = '')
   save(S1, file = ext)
   
